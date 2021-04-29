@@ -286,6 +286,7 @@ Qed.
 
 Definition Ω_PreShv : PreShv C := (Ω_PreShv_data,,is_functor_Ω_PreShv_data).
 
+
 Definition Ω_mor : (PreShv C)⟦Terminal_PreShv,Ω_PreShv⟧.
 Proof.
 use make_nat_trans.
@@ -299,6 +300,73 @@ Lemma isMonic_Ω_mor : isMonic Ω_mor.
 Proof.
 now apply from_terminal_isMonic.
 Qed.
+
+Require Import UniMath.CategoryTheory.SubobjectClassifier.
+
+Record subfunctor {D C: precategory} (F G : D ⟶ C) :=
+  {
+  η : F ⟹ G;
+  all_η_mono : forall (A : D), isMonic (η A)
+  }.
+
+
+Require Import UniMath.Foundations.Sets.
+
+Definition blah
+           (A B : C)
+           (P : PreShv C)
+           (x : pr1hSet ((pr11 P) B)) (* because we are working in the category of SET,
+                                                     and hence don't have raw elements of sets, we
+                                                     use a global element here (1 → P(B)) to encode
+                                                     an element x ∈ P(B) *)
+
+  : SET.
+
+  assert (f: C ⟦A, B⟧). admit.
+
+  Compute (pr2 (pr1 P) _ _ f).
+  Check SET ⟦ (pr11 P) B, (pr11 P) A ⟧.
+  refine (make_hSet (∑ (f : C ⟦A, B⟧) , ((pr21 P) B A f) x )).
+
+
+Definition ϕ
+           (P Q : PreShv C)
+           (_ : subfunctor P Q)
+           (A B : C)
+           (f : C ⟦A, B⟧)
+           (x : Q A)
+  (* (x : Q(C)) C *) : SET.
+  refine (fun (f: ) =>
+                                    _).
+Goal @subobject_classifier (PreShv C) Terminal_PreShv.
+unfold subobject_classifier.
+use tpair.
+{ exact Ω_PreShv. }
+{
+  simpl.
+  use tpair.
+  { exact Ω_mor. }
+  {
+    simpl.
+    intros.
+
+    unshelve eexists.
+    { (* existence *)
+      use tpair.
+      {
+        exact Ω_
+
+        admit. }
+      { admit. }
+    }
+
+    admit.
+    }
+
+
+
+
+
 
 Local Notation "c ⊗ d" := (BinProductObject _ (BinProducts_PreShv c d)) : cat.
 
