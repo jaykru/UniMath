@@ -311,33 +311,19 @@ Record subfunctor {D C: precategory} (F G : D ⟶ C) :=
 
 
 Require Import UniMath.Foundations.Sets.
-
-Definition blah
-           (A B : C)
-           (P : PreShv C)
-           (x : pr1hSet ((pr11 P) B)) (* because we are working in the category of SET,
-                                                     and hence don't have raw elements of sets, we
-                                                     use a global element here (1 → P(B)) to encode
-                                                     an element x ∈ P(B) *)
-
-  : SET.
-
-  assert (f: C ⟦A, B⟧). admit.
-
-  Compute (pr2 (pr1 P) _ _ f).
-  Check SET ⟦ (pr11 P) B, (pr11 P) A ⟧.
-  refine (make_hSet (∑ (f : C ⟦A, B⟧) , ((pr21 P) B A f) x )).
-
+Local Definition global_element_HSET {A : hSet} (a : A) : HSET⟦TerminalHSET, A⟧ :=
+  invweq (weqfunfromunit A) a.
 
 Definition ϕ
            (P Q : PreShv C)
-           (_ : subfunctor P Q)
+           (Hsubfunctor : subfunctor Q P)
            (A B : C)
-           (f : C ⟦A, B⟧)
-           (x : Q A)
+           (x : pr1hSet ((pr11 P) B))
   (* (x : Q(C)) C *) : SET.
-  refine (fun (f: ) =>
-                                    _).
+  unshelve refine (let η : (pr11 Q) A --> (pr11 P) A := (η _ _ Hsubfunctor A) in
+                        make_hSet (∑ (f: C ⟦A, B⟧) (y: HSET ⟦TerminalHSET, (pr11 Q A)⟧),
+                                ((global_element_HSET (((pr21 P) B A f) x)) = η ∘ y)) _).
+
 Goal @subobject_classifier (PreShv C) Terminal_PreShv.
 unfold subobject_classifier.
 use tpair.
