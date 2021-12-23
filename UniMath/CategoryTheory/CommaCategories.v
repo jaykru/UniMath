@@ -490,50 +490,59 @@ Defined.
           eassert (sem = TerminalArrow _ _).
           eapply TerminalArrowUnique.
           unfold has_terminal.
-
           generalize comma_condition.
           rewrite X0, X1.
           intros.
           clear comma_condition.
           rename comma_condition0 into comma_condition.
-          Fail eapply (total2_paths2 (a1 := (TerminalArrow _ a_R,, TerminalArrow _ a_C)) (a2 := (TerminalArrow _ a_R,, TerminalArrow _ a_C)) (b1 := comma_condition) (b2 := match
-                                                                                                                                                                             TerminalArrowUnique
-                                                                                                                                                                               (make_Terminal (T (term_ob C)) (cc_func_of_term_is_term X)) a_R
-                                                                                                                                                                               (TerminalArrow
-                                                                                                                                                                                  (make_Terminal (T (term_ob C)) (cc_func_of_term_is_term X)) a_R) in
-                                                                                                                                                                             (_ = y) return (int_a · # T (TerminalArrow _ a_C) = y)
-                                                                                                                                                                           with
-                                                                                                                                                                           | idpath _ =>
-                                                                                                                                                                               TerminalArrowUnique
-                                                                                                                                                                                 (make_Terminal (T (term_ob C)) (cc_func_of_term_is_term X)) a_R
-                                                                                                                                                                                 (int_a · # T (TerminalArrow _ a_C))
-                                                                                                                                                                           end)).
-
-          Fail eapply (total2_paths2 (a1 := {| pr1 := syn; pr2 := sem |}) (a2:={|
-                                                                                 pr1 := TerminalArrow (has_terminal R) a_R;
-                                                                                 pr2 := TerminalArrow (has_terminal C) a_C |}) (b1 := comma_condition) (b2 := match
-                                                                                                                                                               TerminalArrowUnique
-                                                                                                                                                                 (make_Terminal (T (term_ob C)) (cc_func_of_term_is_term X)) a_R
-                                                                                                                                                                 (TerminalArrow
-                                                                                                                                                                    (make_Terminal (T (term_ob C)) (cc_func_of_term_is_term X)) a_R) in
-                                                                                                                                                               (_ = y) return (int_a · # T (TerminalArrow (has_terminal C) a_C) = y)
-                                                                                                                                                             with
-                                                                                                                                                             | idpath _ =>
-                                                                                                                                                                 TerminalArrowUnique
-                                                                                                                                                                   (make_Terminal (T (term_ob C)) (cc_func_of_term_is_term X)) a_R
-                                                                                                                                                                   (int_a · # T (TerminalArrow (has_terminal C) a_C))
-                                                                                                                                                             end) _ _).
-          eapply PartA.pair_path2 ; simpl.
+          unshelve eapply PartA.pair_path2.
+          {
+            simpl.
+            constructor; exact syn || exact sem.
+          }
+          rewrite X0, X1;
+          reflexivity.
+          rewrite X0, X1;
+          reflexivity.
+          simpl.
           unfold transportf.
           unfold constr1.
           simpl.
-          admit.
+          match goal with
+          | [ |- _ = _ _ ?r ] => unshelve erewrite (_ : comma_condition = r)
+          end.
+          {
+          Check comma_condition.
+          Check (int_a · # T (TerminalArrow (has_terminal C) a_C)).
+
+          assert (has_homsets R).
+          { unfold cc_category in R.
+            destruct R as [cat ccs].
+            destruct cat.
+            simpl.
+            auto. }
+          unfold has_homsets in X2.
+          Check (int_a · # T (TerminalArrow (has_terminal C) a_C)).
+          specialize (X2 a_R (T (has_terminal C))).
+          unfold isaset in X2.
+          unfold isaprop in X2.
+          simpl in X2.
+          unfold iscontr in X2.
+          simpl in X2.
+
+          edestruct (X2 _ _ comma_condition) as [cntr pf].
+          eapply cntr.
+          }
+          {
+            auto.
+          }
         }
       }
     }
-    unshelve econstructor.
     {
 
+    unshelve econstructor.
+    {
       (* binary products *)
       unfold BinProducts.
       unfold BinProduct.
@@ -559,15 +568,11 @@ Defined.
             simpl in *.
             pose (prods_R := has_prods R (T c_C) (T d_C)).
             unfold BinProducts, BinProduct, isBinProduct in prods_R.
-
             pose (P := pr1 (pr1 prods_R)).
             pose (prod_UP := pr2 prods_R).
-
             destruct X as [_ [prod_iso _]].
             eapply (postcompose ((iso_inv_from_iso (prod_iso _ _)))).
-
             specialize (prod_UP P' (pi1' · int_c) (pi2' · int_d)).
-
             destruct prod_UP as [[pair _] _].
             unfold chosen_prod.
             unfold has_prods.
@@ -577,12 +582,9 @@ Defined.
 
         {
           (* product projection *)
-           destruct c as [[c_R c_C] int_c];
-           destruct d as [[d_R d_C] int_d];
-
-           cbv beta;
-
-
+          destruct c as [[c_R c_C] int_c];
+          destruct d as [[d_R d_C] int_d];
+          cbv beta;
           constructor.
           {
             (* first projection *)
@@ -592,12 +594,10 @@ Defined.
             {
               pose (prods_R := has_prods R c_R d_R).
               unfold BinProducts, BinProduct, isBinProduct in prods_R.
-
               pose (P := pr1 (pr1 prods_R)).
               pose (pi1 := pr1 (pr2 (pr1 prods_R))).
               pose (pi2 := pr2 (pr2 (pr1 prods_R))).
               simpl in pi1, pi2.
-
               pose (ump_prod := pr2 prods_R).
               simpl in ump_prod.
               exact pi1.
@@ -605,46 +605,60 @@ Defined.
             {
               pose (prods_C := has_prods C c_C d_C).
               unfold BinProducts, BinProduct, isBinProduct in prods_C.
-
               pose (P := pr1 (pr1 prods_C)).
               pose (pi1 := pr1 (pr2 (pr1 prods_C))).
               pose (pi2 := pr2 (pr2 (pr1 prods_C))).
               simpl in pi1, pi2.
-
               pose (ump_prod := pr2 prods_C).
               simpl in ump_prod.
               exact pi1.
             }
             {
-             simpl in *.
-             pose (pi1R := pr1 (pr2 (pr1 (has_prods R c_R d_R)))).
-             pose (pi1C := pr1 (pr2 (pr1 (has_prods C c_C d_C)))).
-             simpl in pi1R,pi1C.
-             unfold postcompose.
-             erewrite <-(_ : pi1R = pr1 (pr2 (pr1 (has_prods R c_R d_R)))).
-             erewrite <-(_ : pi1C = pr1 (pr2 (pr1 (has_prods C c_C d_C)))).
+              simpl in *.
+              pose (pi1R := pr1 (pr2 (pr1 (has_prods R c_R d_R)))).
+              pose (pi1C := pr1 (pr2 (pr1 (has_prods C c_C d_C)))).
+              simpl in pi1R,pi1C.
+              unfold postcompose.
+              erewrite <-(_ : pi1R = pr1 (pr2 (pr1 (has_prods R c_R d_R)))).
+              erewrite <-(_ : pi1C = pr1 (pr2 (pr1 (has_prods C c_C d_C)))).
+              admit.
 
-             rewrite <-pi1R.
-              pose (pi2^R := pr2 (pr2 (pr1 prods_C))).
-             unfold has_prods.
-             simpl.
-
-             simpl.
-             unfold inv_from_iso.
-             unfold invmap.
             }
-
-
-
+          }
+          {
+            admit.
           }
 
 
         }
       }
       {
+        match goal with
+          | [ |- isBinProduct _ _ _ ?prod ?pi1 ?pi2 ] =>
+              let HProd := fresh prod_def in
+              pose (HProd := prod);
+              let HPi1 := fresh "pi1" in
+              pose (HPi1 := pi1);
+              let HPi2 := fresh "pi2" in
+              pose (HPi2 := pi2)
+        end.
+        fold prod_def pi1 pi2.
+
+        unfold isBinProduct.
+        intros.
+
+        simpl.
         admit.
       }
     }
-    {admit.}
+    {
+      match goal with
+        | [  |- Exponentials ?binprods ] => let Hbinprods := fresh "binprods" in
+                                          pose binprods as Hbinprods;
+                                          fold Hbinprods
+      end.
+
+      unfold Exponentials.
+      admit.}
     all: admit.
   Admitted.
