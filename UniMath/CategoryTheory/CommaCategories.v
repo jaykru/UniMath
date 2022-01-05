@@ -27,6 +27,17 @@ Require Import UniMath.Foundations.Sets.
 
 Require Import UniMath.CategoryTheory.Core.Categories.
 Require Import UniMath.CategoryTheory.Core.Functors.
+
+Require Import UniMath.CategoryTheory.limits.pullbacks.
+Require Import UniMath.CategoryTheory.exponentials.
+Require Import UniMath.CategoryTheory.limits.terminal.
+Require Import UniMath.CategoryTheory.limits.equalizers.
+Require Import UniMath.CategoryTheory.limits.binproducts.
+Require Import UniMath.CategoryTheory.Core.Isos.
+Require Import UniMath.CategoryTheory.Core.Univalence.
+Require Import UniMath.CategoryTheory.Adjunctions.Core.
+Require Import UniMath.CategoryTheory.Core.NaturalTransformations.
+
 Local Open Scope cat.
 
 Section const_comma_category_definition.
@@ -333,10 +344,10 @@ Defined.
 
 End general_comma_categories.
 
-Require Import UniMath.CategoryTheory.exponentials.
-Require Import UniMath.CategoryTheory.limits.terminal.
-Require Import UniMath.CategoryTheory.limits.binproducts.
-Require Import UniMath.CategoryTheory.Core.Isos.
+
+
+
+
 Section cc_comma.
   (* Context (C D : category). *)
   (* Context (F : C ⟶ D). *)
@@ -355,21 +366,41 @@ Section cc_comma.
 
   Definition has_terminal {C} (c: cc_structure C) : Terminal C := pr1 c.
   Definition has_prods {C} (c : cc_structure C) : BinProducts C := pr1 (pr2 c).
+
+
   Definition has_exponentials {C} (c : cc_structure C) : Exponentials _ := (pr2 (pr2 c)).
+  Definition ExpF {C : cc_category} : C → C ⟶ C.
+    epose has_exponentials.
+    unfold Exponentials, is_exponentiable in *.
+    intro X.
+    epose (is_left_adjoint_constprod_functor2 _ _ (e C X)).
+
+    unfold is_left_adjoint in i.
+    intros.
+    exact (pr1 i).
+    Show Proof.                 (* TODO: tidy *)
+  Defined.
+
+
+
   Definition term_ob {C} (c : cc_structure C) : C := (pr1 (pr1 c)).
 
-  Definition chosen_prod {C : cc_category} (x y : C): C.
-      pose proof (has_prods C) as prods_C.
-      unfold BinProducts, BinProduct, isBinProduct in prods_C.
-      specialize (prods_C x y).
-      destruct prods_C as [[P [pi1 pi2]] _].
-      exact P.
-Defined.
+  Definition ProdF {C : cc_category} (x : C): C ⟶ C.
+  eapply (constprod_functor1 (has_prods C) x).
+  Defined.
 
 
-    Definition chosen_exp {C : cc_category} (x y : C): C := (pr1 (has_exponentials C x) y). (* defined by the right-adjoint to the functor _ × x, namely _^ˣ *)
 
-  Notation " y ^ x " := (chosen_exp x y). (* exponentiation by x *)
+  Definition chosen_prod {C : cc_category} (x y : C): C := ProdF x y.
+
+  (* TODO: remove me? *)
+  Lemma chosen_prod_ok { C : cc_category } (x y : C): chosen_prod x y = pr1 (pr1 (has_prods C x y)).
+    auto.
+  Defined.
+
+(* exponentiation is defined by the right-adjoint to the functor _ × x, namely _^ˣ *)
+
+  Notation " y ^ x " := (ExpF x y). (* exponentiation by x *)
 
   Definition is_cc_functor {C: cc_category} {D: cc_category}
                         (F : C ⟶ D) : UU
@@ -378,7 +409,7 @@ Defined.
          (∏ (x y: C), iso (F (chosen_prod x y))
                                      (chosen_prod (F x) (F y))) ×
 
-         (∏ (x y : C), iso (F (chosen_exp x y)) (chosen_exp (F x) (F y))).
+         (∏ (x y : C), iso (F (ExpF x y)) (ExpF (F x) (F y))).
 
 Definition cc_functor (C D : cc_category) := ∑ (F : C ⟶ D), is_cc_functor F.
 
@@ -430,119 +461,67 @@ Lemma cc_func_of_term_is_term : forall {C D : cc_category} {F : C ⟶ D},
   apply F_is_cc.
 Defined.
 
-  Theorem gluing_cc_along_cc_is_cc :
-    ∏ (C : cc_category) (R : cc_category) (T : C ⟶ R),
-           is_cc_functor T ->
-           cc_structure (comma_category T (functor_identity R)).
-  Proof.
+Lemma iso_trans : ∏ {C : category} { a b c : C }, iso a b → iso b c → iso a c.
+  intros ? ? ? ? f g.
+  unshelve econstructor.
+  + exact ( f · g ).
+  + eapply is_iso_comp_of_isos.
+Defined.
+
+Lemma iso_sym : ∏ {C : category} { a b : C }, iso a b → iso b a.
+  intros ? ? ? f; eapply iso_inv_from_iso; auto.
+Defined.
+
+Lemma prod_swap_iso : ∏ {C : cc_category} {c d : C}, iso (chosen_prod c d) (chosen_prod d c).
+  unfold chosen_prod.
+  unfold ProdF.
+  intros.
+  edestruct (FunctorCategory.iso_to_nat_iso _ _ (flip_iso (has_prods C) d)) as [α α_nat_iso].
+  unfold nat_iso, is_nat_iso in α_nat_iso.
+  epose proof (make_iso _ (α_nat_iso _)) as i.
+  eapply iso_sym.
+  eapply i.
+Defined.
+
+  Definition transpose {C : cc_category} {X Y Z : C} (f : C ⟦ ((constprod_functor1 (has_prods C) X) Y) , Z ⟧ ) : C⟦X, Z^Y ⟧.
+    epose (Hadj := pr2 (has_exponentials C _)).
+    unshelve eapply (adjunction_hom_weq Hadj _ _ _).
+    eapply  (compose (nat_trans_constprod_functor1 _ _ _) f).
+  Defined.
+
+  Definition exp_precomp : ∏ {C : cc_category} {X Y Z : C} (f : C ⟦ X , Z ⟧ ),
+           C ⟦Y^Z, Y^X⟧.
+
     intros.
-    unfold cc_structure.
-    constructor.
-    { (* terminal object in gl *)
-      (* ( termob(D) , termob_iso? , termob(C)) *)
-      unfold Terminal.
-      unshelve econstructor.
-      unshelve econstructor.
+    epose (Hadj := pr2 (has_exponentials C _)).
+    unshelve epose (is_left_adjoint_constprod_functor2 _ _ Hadj) as Hadj2.
+    epose (ε := counit_from_left_adjoint Hadj2).
 
-      { exact (term_ob R ,, term_ob C). }
-      { simpl.
-        exact (term_iso X).
-      }
-      { unfold isTerminal.
-        intros.
-        unfold iscontr.
-        unshelve econstructor.
-        { (* canonical morphism into termob *)
-          unshelve econstructor.
-          split.
-          {
-            simpl.
-            exact (TerminalArrow (has_terminal R) (pr1 (pr1 a))) .
-          }
-          {
-            simpl.
-            exact (TerminalArrow (has_terminal C) (pr2 (pr1 a))) .
-          }
-          {
-            simpl.
-            destruct a as [[a_R a_C] int_a].
-            simpl.
-            simpl in *.
-
-            unshelve epose TerminalArrowUnique.
-            { exact R. }
-
-
-
-            epose (make_Terminal _ (cc_func_of_term_is_term X)).
-            specialize (p t a_R).
-            transitivity (TerminalArrow t a_R); auto.
-          }
-        }
-        {
-          intro.
-          destruct t as [[syn sem] comma_condition].
-          simpl in comma_condition.
-          destruct a as [[a_R a_C] int_a].
-          simpl in *.
-          eassert (syn = TerminalArrow _ _).
-          eapply TerminalArrowUnique.
-          eassert (sem = TerminalArrow _ _).
-          eapply TerminalArrowUnique.
-          unfold has_terminal.
-          generalize comma_condition.
-          rewrite X0, X1.
-          intros.
-          clear comma_condition.
-          rename comma_condition0 into comma_condition.
-          unshelve eapply PartA.pair_path2.
-          {
-            simpl.
-            constructor; exact syn || exact sem.
-          }
-          rewrite X0, X1;
-          reflexivity.
-          rewrite X0, X1;
-          reflexivity.
-          simpl.
-          unfold transportf.
-          unfold constr1.
-          simpl.
-          match goal with
-          | [ |- _ = _ _ ?r ] => unshelve erewrite (_ : comma_condition = r)
-          end.
-          {
-          Check comma_condition.
-          Check (int_a · # T (TerminalArrow (has_terminal C) a_C)).
-
-          assert (has_homsets R).
-          { unfold cc_category in R.
-            destruct R as [cat ccs].
-            destruct cat.
-            simpl.
-            auto. }
-          unfold has_homsets in X2.
-          Check (int_a · # T (TerminalArrow (has_terminal C) a_C)).
-          specialize (X2 a_R (T (has_terminal C))).
-          unfold isaset in X2.
-          unfold isaprop in X2.
-          simpl in X2.
-          unfold iscontr in X2.
-          simpl in X2.
-
-          edestruct (X2 _ _ comma_condition) as [cntr pf].
-          eapply cntr.
-          }
-          {
-            auto.
-          }
-        }
-      }
+    unshelve eapply (transpose (_ ·  (ε _))).
+    {
+      unfold Hadj2.
+      eapply (BinProductOfArrows _ _ _ (identity _) f).
     }
-    {
+    Show Proof.
+  Defined.
 
-    unshelve econstructor.
-    {
+  Definition exp_postcomp {C : cc_category} {X Y Z : C} (f : C ⟦X, Z⟧) : C ⟦X ^ Y, Z ^ Y⟧ := # (ExpF _) f.
+
+  Lemma right_adjoint_is_ExpF {C: cc_category} {x y : C}: (right_adjoint (has_exponentials C x)) y = ExpF x y.
+    simpl.
+    unfold ExpF.
+    simpl.
+    auto.
+  Defined.
+
+  Lemma expF_canonical_form {C: cc_category} (x y : C):  pr1 (ExpF y) x = x ^ y.
+    reflexivity.
+  Defined.
+
+  Lemma gluing_cc_along_cc_BinProducts :
+    ∏ (C : cc_category) (R : cc_category) (T : C ⟶ R),
+           is_cc_functor T →
+           BinProducts (comma_category T (functor_identity R)).
       (* binary products *)
       unfold BinProducts.
       unfold BinProduct.
@@ -578,6 +557,7 @@ Defined.
             unfold has_prods.
             eapply pair.
           }
+
         }
 
         {
@@ -650,15 +630,350 @@ Defined.
         simpl.
         admit.
       }
+    Admitted.
+
+  Lemma gluing_cc_along_cc_Terminal :
+    ∏ {C R : cc_category}
+      {T : C ⟶ R} {T_cc : is_cc_functor T},
+Terminal (comma_category T (functor_identity R)).
+    intros.
+    (* terminal object in gl *)
+      (* ( termob(D) , termob_iso? , termob(C)) *)
+      unfold Terminal.
+      unshelve econstructor.
+      unshelve econstructor.
+      { exact (term_ob R ,, term_ob C). }
+      { simpl.
+        match goal with
+          | [ H: is_cc_functor _ |- _ ] => exact (term_iso H)
+        end.
+      }
+      { unfold isTerminal.
+        intros.
+        unfold iscontr.
+        unshelve econstructor.
+        { (* canonical morphism into termob *)
+          unshelve econstructor.
+          split.
+          {
+            simpl.
+            exact (TerminalArrow (has_terminal R) (pr1 (pr1 a))) .
+          }
+          {
+            simpl.
+            exact (TerminalArrow (has_terminal C) (pr2 (pr1 a))) .
+          }
+          {
+            simpl.
+            destruct a as [[a_R a_C] int_a].
+            simpl.
+            simpl in *.
+
+            unshelve epose TerminalArrowUnique.
+            { exact R. }
+
+            match goal with
+              | [ H: is_cc_functor _ |- _ ] => epose (make_Terminal _ (cc_func_of_term_is_term H))
+            end.
+            specialize (p t a_R).
+            transitivity (TerminalArrow t a_R); auto.
+          }
+        }
+        {
+          intro.
+          destruct t as [[syn sem] comma_condition].
+          simpl in comma_condition.
+          destruct a as [[a_R a_C] int_a].
+          simpl in *.
+          eassert (syn = TerminalArrow _ _).
+          eapply TerminalArrowUnique.
+          eassert (sem = TerminalArrow _ _).
+          eapply TerminalArrowUnique.
+          unfold has_terminal.
+          generalize comma_condition.
+          subst.
+          (* rewrite X1, X2. *)
+          intros.
+          clear comma_condition.
+          rename comma_condition0 into comma_condition.
+          unshelve eapply PartA.pair_path2.
+          {
+            simpl.
+            constructor; exact syn || exact sem.
+          }
+          subst; (* rewrite X1, X2; *)
+          reflexivity.
+          repeat match goal with
+                   | [ H: syn = _ |- _ ] => progress rewrite H
+                   | [ H: sem = _ |- _ ] => progress rewrite H
+                 end;
+          reflexivity.
+          simpl.
+          unfold transportf.
+          unfold constr1.
+          simpl.
+          repeat match goal with
+                   | [ H: syn = _ |- _ ] => progress rewrite <-H
+                   | [ H: sem = _ |- _ ] => progress rewrite <-H
+                 end.
+          (* match goal with *)
+          (* | [ |- _ = _ _ ?r ] => unshelve erewrite (_ : comma_condition = r) *)
+          (* end. *)
+          {
+            Check comma_condition.
+            Check (int_a · # T (TerminalArrow (has_terminal C) a_C)).
+
+            assert (has_homsets R).
+            { unfold cc_category in R.
+              destruct R as [cat ccs].
+              destruct cat.
+              simpl.
+              auto. }
+            match goal with
+              | [ H: has_homsets _ |- _ ] => unfold has_homsets in H
+            end.
+            Check (int_a · # T (TerminalArrow (has_terminal C) a_C)).
+            match goal with
+              | [ H: context[isaset _] |- _ ] =>
+                  specialize (H a_R (T (has_terminal C)));
+                  unfold isaset in H;
+                  unfold isaprop in H;
+                  simpl in H;
+                  unfold iscontr in H;
+                  simpl in H;
+                  edestruct (H _ _ comma_condition) as [cntr pf];
+                  eapply cntr
+            end.
+          }
+        }
+      }
+Abort. (* COQBUG Defined and Qed both fail here, report anomaly at clib/int.ml:45*)
+
+
+Section gluing_cc_along_cc.
+  Context {C R : cc_category} {T : C ⟶ R}.
+  Context {R_pbs : Pullbacks R}. (* R needs pullbacks so that we can define the exponential objects
+                                    in the gluing category *)
+  Context (T_cc : is_cc_functor T).
+
+
+
+  Definition comma_exponential (one two : (comma_category T (functor_identity R))):
+    (comma_category T (functor_identity R)).
+    destruct one as [[R1 Δ1] q1].
+    destruct two as [[R2 Δ2] q2].
+
+    pose (has_exponentials C) as HExpC.
+    unfold Exponentials in HExpC.
+    unfold is_exponentiable in HExpC.
+    epose (ε := counit_from_left_adjoint (HExpC _)).
+
+    match goal with
+      | [ H: is_cc_functor _ |- _ ] =>
+          epose proof (p := (precomp_with prod_swap_iso (inv_from_iso (prod_iso H _ _))) · # T(ε _))
+    end.
+    simpl in p.
+    unshelve epose (pb := Pullback (exp_postcomp q2) (transpose(p) · ?[f])).
+    {
+      shelve.
     }
     {
-      match goal with
-        | [  |- Exponentials ?binprods ] => let Hbinprods := fresh "binprods" in
-                                          pose binprods as Hbinprods;
-                                          fold Hbinprods
-      end.
+      simpl.
+      unfold HExpC.
+      repeat rewrite right_adjoint_is_ExpF in *.
+      pose (exp_precomp (Y := T Δ2) q1).
+      simpl in p0.
+      Unset Printing Notations.
+      Fail rewrite (expF_canonical_form Δ2 Δ1). (* coq BUG *)
+      Set Printing Notations.
+      (* GOAL:
+               R [ T Δ2 ^ T (Δ2 ^ (Δ2 ^ Δ1)), T Δ2 ^ R1 ]
+       *)
+      eapply p0.
+    }
 
-      unfold Exponentials.
-      admit.}
-    all: admit.
+    unshelve epose ( _ : pb).
+    unfold pb.
+    match goal with
+      | [ H: Pullbacks _ |- _ ] =>
+          unfold Pullbacks in H;
+          specialize (H _ _ _ (exp_postcomp q2) (transpose p · exp_precomp q1));
+          eapply H
+    end .
+    simpl in p0.
+    edestruct p0 as [[P [p1 p2]] P_pullback].
+    simpl in *.
+    unfold HExpC in p2.
+    unshelve econstructor.
+    { unshelve econstructor; exact P || exact (Δ2 ^ Δ1). }
+    { simpl.
+      eapply p2. }
+  Defined.
+
+  Theorem gluing_cc_along_cc_is_cc : cc_structure (comma_category T (functor_identity R)).
+  Proof.
+    intros.
+    unfold cc_structure.
+    constructor.
+    { (* terminal object in gl *)
+      (* ( termob(D) , termob_iso? , termob(C)) *)
+      unfold Terminal.
+      unshelve econstructor.
+      unshelve econstructor.
+      { exact (term_ob R ,, term_ob C). }
+      { simpl.
+        match goal with
+          | [ H: is_cc_functor _ |- _ ] => exact (term_iso H)
+        end.
+      }
+      { unfold isTerminal.
+        intros.
+        unfold iscontr.
+        unshelve econstructor.
+        { (* canonical morphism into termob *)
+          unshelve econstructor.
+          split.
+          {
+            simpl.
+            exact (TerminalArrow (has_terminal R) (pr1 (pr1 a))) .
+          }
+          {
+            simpl.
+            exact (TerminalArrow (has_terminal C) (pr2 (pr1 a))) .
+          }
+          {
+            simpl.
+            destruct a as [[a_R a_C] int_a].
+            simpl.
+            simpl in *.
+
+            unshelve epose TerminalArrowUnique.
+            { exact R. }
+
+            match goal with
+              | [ H: is_cc_functor _ |- _ ] => epose (make_Terminal _ (cc_func_of_term_is_term H))
+            end.
+            specialize (p t a_R).
+            transitivity (TerminalArrow t a_R); auto.
+          }
+        }
+        {
+          intro.
+          destruct t as [[syn sem] comma_condition].
+          simpl in comma_condition.
+          destruct a as [[a_R a_C] int_a].
+          simpl in *.
+          eassert (syn = TerminalArrow _ _).
+          eapply TerminalArrowUnique.
+          eassert (sem = TerminalArrow _ _).
+          eapply TerminalArrowUnique.
+          unfold has_terminal.
+          generalize comma_condition.
+          subst.
+          (* rewrite X1, X2. *)
+          intros.
+          clear comma_condition.
+          rename comma_condition0 into comma_condition.
+          unshelve eapply PartA.pair_path2.
+          {
+            simpl.
+            constructor; exact syn || exact sem.
+          }
+          subst; (* rewrite X1, X2; *)
+          reflexivity.
+          repeat match goal with
+                   | [ H: syn = _ |- _ ] => progress rewrite H
+                   | [ H: sem = _ |- _ ] => progress rewrite H
+                 end;
+          reflexivity.
+          simpl.
+          unfold transportf.
+          unfold constr1.
+          simpl.
+          repeat match goal with
+                   | [ H: syn = _ |- _ ] => progress rewrite <-H
+                   | [ H: sem = _ |- _ ] => progress rewrite <-H
+                 end.
+          (* match goal with *)
+          (* | [ |- _ = _ _ ?r ] => unshelve erewrite (_ : comma_condition = r) *)
+          (* end. *)
+          {
+            Check comma_condition.
+            Check (int_a · # T (TerminalArrow (has_terminal C) a_C)).
+
+            assert (has_homsets R).
+            { unfold cc_category in R.
+              destruct R as [cat ccs].
+              destruct cat.
+              simpl.
+              auto. }
+            match goal with
+              | [ H: has_homsets _ |- _ ] => unfold has_homsets in H
+            end.
+            Check (int_a · # T (TerminalArrow (has_terminal C) a_C)).
+            match goal with
+              | [ H: context[isaset _] |- _ ] =>
+                  specialize (H a_R (T (has_terminal C)));
+                  unfold isaset in H;
+                  unfold isaprop in H;
+                  simpl in H;
+                  unfold iscontr in H;
+                  simpl in H;
+                  edestruct (H _ _ comma_condition) as [cntr pf];
+                  eapply cntr
+            end.
+          }
+        }
+
+      }
+    }
+    {
+      unshelve econstructor.
+      { eapply gluing_cc_along_cc_BinProducts; auto. }
+      {
+        match goal with
+          | [  |- Exponentials ?binprods ] => let Hbinprods := fresh "binprods" in
+                                            pose  binprods as Hbinprods;
+                                            fold Hbinprods
+        end.
+        unfold Exponentials.
+        intros.
+        unfold is_exponentiable.
+        (* GOAL: the functor (a × -) is a left adjoint *)
+        unfold Core.is_left_adjoint, Core.are_adjoints.
+        unshelve eexists.
+        {
+          (*  exponentiation functor (_ ^ a) *)
+          (* The exponential objects (R₂,q₂,Δ₂)^(R₁,q₁,Δ₁) in the category are (R, q, Δ₂^Δ₁) in the
+            pullback object in the square: *)
+          (*  R -------------- r -------------> R₂^R₁
+             |                                   |
+             |                                   |
+             q                                postcomp q₂
+             |                                   |
+             |                                   |
+             |                                   |
+             v                                   v
+          T(Δ₂^Δ₁) -- precomp(p) · q₁^* --->  T(Δ₂)^R₁. *)
+
+          unshelve econstructor.
+          { unshelve econstructor.
+            {  intro input.
+               exact (comma_exponential a input).
+            }
+            {
+              intros.
+              cbn beta.
+              epose (postcomp_with X).
+              unshelve econstructor.
+            }
+
+            intros.
+
+          }
+
+          admit.
+        }
+
   Admitted.
+End gluing_cc_along_cc.
